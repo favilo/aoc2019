@@ -10,6 +10,7 @@ pub enum Opcode {
 
 impl Opcode {
     #[inline]
+    #[allow(dead_code)]
     fn size(&self) -> usize {
         #[cfg(feature = "profiler")]
         profile_scope!("get_opcode");
@@ -67,6 +68,8 @@ impl Program {
         self.memory[ip] = value;
     }
 
+    #[inline]
+    #[allow(dead_code)]
     fn get_bytecode(&self) -> usize {
         self.memory[self.ip]
     }

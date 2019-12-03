@@ -22,6 +22,7 @@ fn run(input: &Vec<usize>, noun: usize, verb: usize) -> usize {
     p.interpret()
 }
 
+#[cfg(feature = "include_slow")]
 pub fn stage2(input: &Vec<usize>) -> usize {
     #[cfg(feature = "profiler")]
     profile_scope!("stage2");
@@ -86,19 +87,19 @@ pub fn run_day() {
 
     let start = Instant::now();
     let s1 = stage1(&input);
-    log::info!("Stage 1 timer: {:?}", start.elapsed());
+    log::debug!("Stage 1 timer: {:?}", start.elapsed());
     log::info!("{:?}", s1);
 
     let start = Instant::now();
     let s2 = stage2_linear(&input);
-    log::info!("Stage 2 linear timer: {:?}", start.elapsed());
+    log::debug!("Stage 2 linear timer: {:?}", start.elapsed());
     log::info!("{:?}", s2);
 
     #[cfg(feature = "include_slow")]
     {
         let start = Instant::now();
         let s2 = stage2(&input);
-        log::info!("Stage 2 old timer: {:?}", start.elapsed());
+        log::debug!("Stage 2 old timer: {:?}", start.elapsed());
         log::info!("{:?}", s2);
     }
 }

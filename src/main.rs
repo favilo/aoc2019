@@ -16,12 +16,16 @@ lazy_static! {
     };
 }
 
-fn main() {
+fn setup() {
     #[cfg(feature = "profiler")]
     thread_profiler::register_thread_with_profiler();
 
-    let start = Instant::now();
     env_logger::init();
+}
+
+fn main() {
+    let start = Instant::now();
+    setup();
     let app = App::new("AoC 2019")
         .version("1.0")
         .author("Favil Orbedios <favilo@gmail.com>")
