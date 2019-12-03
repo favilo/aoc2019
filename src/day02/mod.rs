@@ -1,8 +1,7 @@
-use itertools::iproduct;
 #[cfg(feature = "profiler")]
 use thread_profiler::profile_scope;
 
-use std::{fs, path::Path, str::FromStr};
+use std::{fs, path::Path, str::FromStr, time::Instant};
 
 use crate::intcode::*;
 
@@ -26,13 +25,44 @@ fn run(input: &Vec<usize>, noun: usize, verb: usize) -> usize {
 pub fn stage2(input: &Vec<usize>) -> usize {
     #[cfg(feature = "profiler")]
     profile_scope!("stage2");
-    for (noun, verb) in iproduct![0..100, 0..100] {
+    let verb = 0;
+    let noun = {
+        let mut final_noun = 0;
+        for noun in 0..100 {
+            let output = run(input, noun, verb);
+            if output > 19690720 {
+                final_noun = noun - 1;
+                break;
+            }
+            if output == 19690720 {
+                return 100 * noun + verb;
+            }
+        }
+        final_noun
+    };
+
+    for verb in 0..100 {
         let output = run(input, noun, verb);
+        log::trace!("{}, {} => {}", noun, verb, output);
         if output == 19690720 {
             return 100 * noun + verb;
         }
     }
     panic!("Didn't find values")
+}
+
+pub fn stage2_linear(input: &Vec<usize>) -> usize {
+    let n0 = run(&input, 0, 0);
+    let n1 = run(&input, 1, 0);
+    let v1 = run(&input, 0, 1);
+    let n = n1 - n0;
+    let v = v1 - n0;
+
+    let goal = 19690720;
+    let noun = (goal - n0) / n;
+    let verb = (goal - n0 - n * noun) / v;
+    log::trace!("{}, {}", noun, verb);
+    100 * noun + verb
 }
 
 pub fn run_day() {
@@ -54,10 +84,23 @@ pub fn run_day() {
         .flatten()
         .collect();
 
+    let start = Instant::now();
     let s1 = stage1(&input);
+    log::info!("Stage 1 timer: {:?}", start.elapsed());
     log::info!("{:?}", s1);
-    let s2 = stage2(&input);
+
+    let start = Instant::now();
+    let s2 = stage2_linear(&input);
+    log::info!("Stage 2 linear timer: {:?}", start.elapsed());
     log::info!("{:?}", s2);
+
+    #[cfg(feature = "include_slow")]
+    {
+        let start = Instant::now();
+        let s2 = stage2(&input);
+        log::info!("Stage 2 old timer: {:?}", start.elapsed());
+        log::info!("{:?}", s2);
+    }
 }
 
 #[cfg(test)]
@@ -65,5 +108,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_template() {}
+    fn test_template() {
+        let input_path = Path::new("src")
+            .join(format!("day{:02}", DAY))
+            .join("input");
+        log::debug!("Opening file {:?}", input_path);
+        let s = fs::read_to_string(input_path).expect("Some input needs to exist");
+        let input: Vec<usize> = s
+            .lines()
+            .map(|line| {
+                line.split(",")
+                    .map(usize::from_str)
+                    .map(Result::unwrap)
+                    .collect::<Vec<usize>>()
+            })
+            .flatten()
+            .collect();
+        let n0 = run(&input, 0, 0);
+        let n1 = run(&input, 1, 0);
+        let v1 = run(&input, 0, 1);
+        let n = n1 - n0;
+        let v = v1 - n0;
+        // assert_eq!(n, 856118);
+        let noun = 23;
+        let verb = 47;
+        assert_eq!(run(&input, noun, verb), n * noun + v * verb + n0);
+
+        assert_eq!(1, 1);
+    }
 }

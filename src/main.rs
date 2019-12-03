@@ -17,7 +17,9 @@ lazy_static! {
 }
 
 fn main() {
+    #[cfg(feature = "profiler")]
     thread_profiler::register_thread_with_profiler();
+
     let start = Instant::now();
     env_logger::init();
     let app = App::new("AoC 2019")
@@ -67,7 +69,11 @@ fn main() {
         }
     }
     log::info!("Timing: {:?}", start.elapsed());
-    let output = "./profile.json";
-    println!("Writing output to {}", output);
-    thread_profiler::write_profile(output);
+    #[cfg(feature = "profiler")]
+    {
+        let output = "./profile.json";
+        println!("Writing output to {}", output);
+
+        thread_profiler::write_profile(output);
+    }
 }

@@ -9,6 +9,7 @@ pub enum Opcode {
 }
 
 impl Opcode {
+    #[inline]
     fn size(&self) -> usize {
         #[cfg(feature = "profiler")]
         profile_scope!("get_opcode");
@@ -29,6 +30,8 @@ pub struct Program {
 
 impl Program {
     pub fn new(input: &Vec<usize>) -> Self {
+        #[cfg(feature = "profiler")]
+        profile_scope!("new");
         Self {
             ip: 0,
             memory: input.to_vec(),
@@ -41,11 +44,11 @@ impl Program {
         loop {
             match self.get_opcode() {
                 Opcode::ADD(s1, s2, d) => {
-                    log::trace!("{} + {} -> {}", self.memory[s1], self.memory[s2], d);
+                    // log::trace!("{} + {} -> {}", self.memory[s1], self.memory[s2], d);
                     self.memory[d] = self.memory[s1] + self.memory[s2];
                 }
                 Opcode::MULT(s1, s2, d) => {
-                    log::trace!("{} * {} -> {}", self.memory[s1], self.memory[s2], d);
+                    // log::trace!("{} * {} -> {}", self.memory[s1], self.memory[s2], d);
                     self.memory[d] = self.memory[s1] * self.memory[s2];
                 }
                 Opcode::HALT => {
@@ -57,10 +60,18 @@ impl Program {
         self.memory[0]
     }
 
+    #[inline]
     pub fn set_mem(&mut self, ip: usize, value: usize) {
+        #[cfg(feature = "profiler")]
+        profile_scope!("set_mem");
         self.memory[ip] = value;
     }
 
+    fn get_bytecode(&self) -> usize {
+        self.memory[self.ip]
+    }
+
+    #[inline]
     fn get_opcode(&self) -> Opcode {
         #[cfg(feature = "profiler")]
         profile_scope!("get_opcode");
@@ -84,7 +95,15 @@ impl Program {
         }
     }
 
+    #[inline]
     fn advance(&mut self) {
-        self.ip += self.get_opcode().size();
+        #[cfg(feature = "profiler")]
+        profile_scope!("advance");
+        self.ip += Self::opcode_size(self.memory[self.ip])
+    }
+
+    #[inline]
+    fn opcode_size(_opcode: usize) -> usize {
+        4
     }
 }

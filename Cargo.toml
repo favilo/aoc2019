@@ -17,3 +17,4 @@ thread_profiler = { version = "*", optional = true }
 [features]
 
 profiler = ["thread_profiler"]
+include_slow = []
