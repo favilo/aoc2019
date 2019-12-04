@@ -5,6 +5,7 @@ use std::{collections::HashMap, str::FromStr, time::Instant};
 
 mod day01;
 mod day02;
+mod day03;
 mod intcode;
 
 lazy_static! {
@@ -12,6 +13,7 @@ lazy_static! {
         let mut m = HashMap::<u8, fn()>::new();
         m.insert(1, day01::run_day);
         m.insert(2, day02::run_day);
+        m.insert(3, day03::run_day);
         m
     };
 }
