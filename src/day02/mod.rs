@@ -17,8 +17,7 @@ fn run(input: &Vec<usize>, noun: usize, verb: usize) -> usize {
     #[cfg(feature = "profiler")]
     profile_scope!("run");
     let mut p = Program::new(input);
-    p.set_mem(1, noun);
-    p.set_mem(2, verb);
+    p.load_input(noun, verb);
     p.interpret()
 }
 
@@ -69,6 +68,7 @@ pub fn stage2_linear(input: &Vec<usize>) -> usize {
 pub fn run_day() {
     #[cfg(feature = "profiler")]
     profile_scope!("day2");
+    let start = Instant::now();
     let input_path = Path::new("src")
         .join(format!("day{:02}", DAY))
         .join("input");
@@ -84,6 +84,7 @@ pub fn run_day() {
         })
         .flatten()
         .collect();
+    log::debug!("Day {} load: {:?}", DAY, start.elapsed());
 
     let start = Instant::now();
     let s1 = stage1(&input);
