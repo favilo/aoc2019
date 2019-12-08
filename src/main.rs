@@ -6,6 +6,11 @@ use std::{collections::HashMap, str::FromStr, time::Instant};
 mod day01;
 mod day02;
 mod day03;
+mod day04;
+mod day05;
+mod day06;
+mod day07;
+mod day08;
 mod intcode;
 
 lazy_static! {
@@ -14,6 +19,11 @@ lazy_static! {
         m.insert(1, day01::run_day);
         m.insert(2, day02::run_day);
         m.insert(3, day03::run_day);
+        m.insert(4, day04::run_day);
+        m.insert(5, day05::run_day);
+        m.insert(6, day06::run_day);
+        m.insert(7, day07::run_day);
+        m.insert(8, day08::run_day);
         m
     };
 }

@@ -1,64 +1,92 @@
+use sorted_vec::SortedVec;
+
 #[cfg(feature = "profiler")]
 use thread_profiler::profile_scope;
 
-use std::{collections::HashSet, fs, path::Path, time::Instant};
+use std::{
+    cmp::{min, Ord, Ordering, PartialEq},
+    collections::HashSet,
+    fs,
+    path::Path,
+    time::Instant,
+};
 
 const DAY: u64 = 3;
 
 type Point = (isize, isize);
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
-enum Line {
-    Horiz(Point, usize),
-    Vert(Point, usize),
+// enum Line {
+//     Horiz(Point, usize),
+//     Vert(Point, usize),
+// }
+
+struct Line {
+    vert: bool,
+    p: Point,
+    d: usize,
 }
 
 impl Line {
     fn build(p: Point, s: &String) -> (Self, Point) {
         match s.chars().next().unwrap() {
             'R' => {
-                let this = Self::Horiz(p, usize::from_str_radix(&s[1..], 10).unwrap());
+                let this = Self {
+                    vert: false,
+                    p,
+                    d: usize::from_str_radix(&s[1..], 10).unwrap(),
+                };
                 (this, this.end())
             }
             'L' => {
                 let d = isize::from_str_radix(&s[1..], 10).unwrap();
-                let this = Self::Horiz((p.0 - d, p.1), d as usize);
+                let this = Self {
+                    vert: false,
+                    p: (p.0 - d, p.1),
+                    d: d as usize,
+                };
                 (this, this.start())
             }
             'U' => {
-                let this = Self::Vert(p, usize::from_str_radix(&s[1..], 10).unwrap());
+                let this = Self {
+                    vert: true,
+                    p,
+                    d: usize::from_str_radix(&s[1..], 10).unwrap(),
+                };
                 (this, this.end())
             }
             'D' => {
                 let d = isize::from_str_radix(&s[1..], 10).unwrap();
-                let this = Self::Vert((p.0, p.1 - d), d as usize);
+                let this = Self {
+                    vert: true,
+                    p: (p.0, p.1 - d),
+                    d: d as usize,
+                };
                 (this, this.start())
             }
             _ => panic!("Doesn't work"),
         }
     }
 
+    #[inline]
     fn start(&self) -> Point {
-        match self {
-            Line::Horiz(p, _) => *p,
-            Line::Vert(p, _) => *p,
-        }
+        self.p
     }
 
+    #[inline]
     fn end(&self) -> Point {
-        match self {
-            Line::Horiz(p, d) => (p.0 + *d as isize, p.1),
-            Line::Vert(p, d) => (p.0, p.1 + *d as isize),
+        match self.vert {
+            false => (self.p.0 + self.d as isize, self.p.1),
+            true => (self.p.0, self.p.1 + self.d as isize),
         }
     }
 
+    #[inline]
     fn dist(&self) -> usize {
-        match self {
-            Line::Horiz(_, d) => *d,
-            Line::Vert(_, d) => *d,
-        }
+        self.d
     }
 
+    #[inline]
     fn inside(&self, p: Point) -> bool {
         if self.start().0 == self.end().0 {
             p.0 == self.start().0 && p.1 >= self.start().1 && p.1 <= self.end().1
@@ -67,6 +95,7 @@ impl Line {
         }
     }
 
+    #[inline]
     fn other(&self, p: Point) -> Point {
         if p == self.start() {
             self.end()
@@ -76,11 +105,44 @@ impl Line {
     }
 }
 
+#[derive(PartialEq, Eq, Debug)]
+struct Start(Line);
+
+impl Ord for Start {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.start().cmp(&other.0.start())
+    }
+}
+
+impl PartialOrd for Start {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(PartialEq, Eq, Debug)]
+struct End(Line);
+
+impl Ord for End {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.end().cmp(&other.0.end())
+    }
+}
+
+impl PartialOrd for End {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 #[derive(Debug)]
-struct Panel {
+pub struct Panel {
     wires: Vec<Vec<Line>>,
     idx: usize,
     last_point: Point,
+    starts: Vec<Vec<Start>>,
+    ends: Vec<Vec<End>>,
+    verts: Vec<Vec<Start>>,
 }
 
 impl Panel {
@@ -89,23 +151,53 @@ impl Panel {
             wires: vec![vec![]],
             idx: 0,
             last_point: (0, 0),
+            starts: vec![Vec::with_capacity(1000), Vec::with_capacity(1000)],
+            ends: vec![Vec::with_capacity(1000), Vec::with_capacity(1000)],
+            verts: vec![Vec::with_capacity(1000), Vec::with_capacity(1000)],
         }
     }
 
+    #[inline]
     fn construct_wire(mut self, wire: Vec<String>) -> Self {
+        #[cfg(feature = "profiler")]
+        profile_scope!("construct_wire");
+        let mut verts = SortedVec::new();
+        let mut starts = SortedVec::new();
+        let mut ends = SortedVec::new();
+
         for w in wire {
-            self.add_segment(&w);
+            self.add_segment(&w, &mut verts, &mut starts, &mut ends);
         }
+        self.verts[self.idx].append(&mut verts.to_vec());
+        self.starts[self.idx].append(&mut starts.to_vec());
+        self.ends[self.idx].append(&mut ends.to_vec());
+
         self.next_wire();
         self
     }
 
-    fn add_segment(&mut self, s: &String) {
+    #[inline]
+    fn add_segment(
+        &mut self,
+        s: &String,
+        verts: &mut SortedVec<Start>,
+        starts: &mut SortedVec<Start>,
+        ends: &mut SortedVec<End>,
+    ) {
+        #[cfg(feature = "profiler")]
+        profile_scope!("add_segment");
         let (line, p) = Line::build(self.last_point, s);
         self.wires[self.idx].push(line);
+        if line.vert {
+            verts.insert(Start(line)).unwrap();
+        } else {
+            starts.insert(Start(line)).unwrap();
+            ends.insert(End(line)).unwrap();
+        }
         self.last_point = p;
     }
 
+    #[inline]
     fn next_wire(&mut self) {
         self.idx += 1;
         self.last_point = (0, 0);
@@ -113,47 +205,26 @@ impl Panel {
     }
 
     fn sorted_verts(&self, idx: usize) -> Vec<Line> {
-        let mut v = self.wires[idx]
-            .iter()
-            .cloned()
-            .filter(|l| match l {
-                Line::Horiz(_, _) => false,
-                Line::Vert(_, _) => true,
-            })
-            .collect::<Vec<Line>>();
-        v.sort_by(|a, b| Ord::cmp(&a.start().0, &b.start().0));
-        v
+        self.verts[idx].iter().map(|Start(l)| l.clone()).collect()
     }
 
     fn sorted_horiz_ends(&self, idx: usize) -> Vec<Line> {
-        let mut v = self.wires[idx]
-            .iter()
-            .cloned()
-            .filter(|l| match l {
-                Line::Horiz(_, _) => true,
-                Line::Vert(_, _) => false,
-            })
-            .collect::<Vec<Line>>();
-        v.sort_by(|a, b| Ord::cmp(&a.end().0, &b.end().0));
-        v
+        #[cfg(feature = "profiler")]
+        profile_scope!("sorted_horiz_ends");
+        self.ends[idx].iter().map(|End(l)| l.clone()).collect()
     }
 
     fn sorted_horiz_starts(&self, idx: usize) -> Vec<Line> {
-        let mut v = self.wires[idx]
-            .iter()
-            .cloned()
-            .filter(|l| match l {
-                Line::Horiz(_, _) => true,
-                Line::Vert(_, _) => false,
-            })
-            .collect::<Vec<Line>>();
-        v.sort_by(|a, b| Ord::cmp(&a.start().0, &b.start().0));
-        v
+        #[cfg(feature = "profiler")]
+        profile_scope!("sorted_horiz_starts");
+        self.starts[idx].iter().map(|Start(l)| l.clone()).collect()
     }
 
     fn intersections(&self, from: usize, to: usize) -> impl Iterator<Item = Point> {
-        let mut checking: HashSet<Line> = HashSet::new();
-        let mut intersections = Vec::new();
+        #[cfg(feature = "profiler")]
+        profile_scope!("intersections");
+        let mut checking: HashSet<Line> = HashSet::with_capacity(1000);
+        let mut intersections = Vec::with_capacity(1000);
 
         let starts = self.sorted_horiz_starts(from);
         let ends = self.sorted_horiz_ends(from);
@@ -169,7 +240,8 @@ impl Panel {
                 ends[end_idx].end().0,
                 verts[vert_idx].start().0,
             );
-            let min = *[start_x, end_x, vert_x].iter().min().to_owned().unwrap();
+            // let min = *[start_x, end_x, vert_x].iter().min().to_owned().unwrap();
+            let min = min(start_x, min(end_x, vert_x));
             if min == start_x {
                 checking.insert(starts[start_idx]);
                 start_idx += 1;
@@ -186,6 +258,9 @@ impl Panel {
     }
 
     fn steps_to(&self, p: Point, idx: usize) -> usize {
+        #[cfg(feature = "profiler")]
+        profile_scope!("steps_to");
+
         let mut last_point = (0, 0);
         let mut dist = 0;
         for l in self.wires[idx].to_vec() {
@@ -201,6 +276,7 @@ impl Panel {
     }
 }
 
+// TODO: Make this be a BTreeMap or something that lets me search faster
 fn check_vert(checking: &HashSet<Line>, vert: Line) -> Vec<Point> {
     checking
         .iter()
@@ -214,26 +290,18 @@ fn manhattan_distance(p: Point) -> usize {
     (p.0.abs() + p.1.abs()) as usize
 }
 
-pub fn stage1(input: &Vec<Vec<String>>) -> usize {
+pub fn stage1(panel: &Panel) -> usize {
     #[cfg(feature = "profiler")]
     profile_scope!("stage1");
-    let panel = Panel::new();
-    let panel = input
-        .iter()
-        .fold(panel, |p, v| p.construct_wire(v.to_vec()));
     let last = panel.intersections(0, 1).chain(panel.intersections(1, 0));
     // log::info!("{:?}", last.collect::<Vec<Point>>());
     last.map(manhattan_distance).min().unwrap()
 }
 
-pub fn stage2(input: &Vec<Vec<String>>) -> usize {
+pub fn stage2(panel: &Panel) -> usize {
     #[cfg(feature = "profiler")]
     profile_scope!("stage2");
 
-    let panel = Panel::new();
-    let panel = input
-        .iter()
-        .fold(panel, |p, v| p.construct_wire(v.to_vec()));
     let last: Vec<Point> = panel
         .intersections(0, 1)
         .chain(panel.intersections(1, 0))
@@ -247,7 +315,8 @@ pub fn stage2(input: &Vec<Vec<String>>) -> usize {
 
 pub fn run_day() {
     #[cfg(feature = "profiler")]
-    profile_scope!("day1");
+    profile_scope!("day3");
+    let start = Instant::now();
     let input_path = Path::new("src")
         .join(format!("day{:02}", DAY))
         .join("input");
@@ -261,15 +330,21 @@ pub fn run_day() {
                 .collect::<Vec<String>>()
         })
         .collect();
+    let panel = Panel::new();
+    let panel = input
+        .iter()
+        .fold(panel, |p, v| p.construct_wire(v.to_vec()));
+    log::debug!("Day 3 loading timer: {:?}", start.elapsed());
+
     // log::info!("{:?}", input);
     let start = Instant::now();
-    let s1 = stage1(&input);
+    let s1 = stage1(&panel);
     log::debug!("Stage 1 timer: {:?}", start.elapsed());
     log::info!("{:?}", s1);
 
     let start = Instant::now();
-    let s2 = stage2(&input);
-    log::debug!("Stage 2 linear timer: {:?}", start.elapsed());
+    let s2 = stage2(&panel);
+    log::debug!("Stage 2 timer: {:?}", start.elapsed());
     log::info!("{:?}", s2);
 }
 
@@ -287,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_panel_sorted_verts() {
-        let mut p = Panel::new();
+        let p = Panel::new();
         let p = p.construct_wire(vec![
             "L10".to_string(),
             "U13".to_string(),
@@ -307,7 +382,7 @@ mod tests {
 
     #[test]
     fn test_panel_sorted_horiz_ends() {
-        let mut p = Panel::new();
+        let p = Panel::new();
         let p = p.construct_wire(vec![
             "L10".to_string(),
             "U13".to_string(),
@@ -330,7 +405,7 @@ mod tests {
 
     #[test]
     fn test_panel_sorted_horiz_starts() {
-        let mut p = Panel::new();
+        let p = Panel::new();
         let p = p.construct_wire(vec![
             "L10".to_string(),
             "U13".to_string(),

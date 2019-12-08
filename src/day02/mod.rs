@@ -7,13 +7,13 @@ use crate::intcode::*;
 
 const DAY: usize = 2;
 
-pub fn stage1(input: &Vec<usize>) -> usize {
+pub fn stage1(input: &Vec<isize>) -> isize {
     #[cfg(feature = "profiler")]
     profile_scope!("stage1");
     run(input, 12, 2)
 }
 
-fn run(input: &Vec<usize>, noun: usize, verb: usize) -> usize {
+fn run(input: &Vec<isize>, noun: isize, verb: isize) -> isize {
     #[cfg(feature = "profiler")]
     profile_scope!("run");
     let mut p = Program::new(input);
@@ -22,7 +22,7 @@ fn run(input: &Vec<usize>, noun: usize, verb: usize) -> usize {
 }
 
 #[cfg(feature = "include_slow")]
-pub fn stage2(input: &Vec<usize>) -> usize {
+pub fn stage2(input: &Vec<isize>) -> isize {
     #[cfg(feature = "profiler")]
     profile_scope!("stage2");
     let verb = 0;
@@ -51,10 +51,10 @@ pub fn stage2(input: &Vec<usize>) -> usize {
     panic!("Didn't find values")
 }
 
-pub fn stage2_linear(input: &Vec<usize>) -> usize {
-    let n0 = run(&input, 0, 0);
-    let n1 = run(&input, 1, 0);
-    let v1 = run(&input, 0, 1);
+pub fn stage2_linear(input: &Vec<isize>) -> isize {
+    let n0 = run(input, 0, 0);
+    let n1 = run(input, 1, 0);
+    let v1 = run(input, 0, 1);
     let n = n1 - n0;
     let v = v1 - n0;
 
@@ -73,17 +73,14 @@ pub fn run_day() {
         .join(format!("day{:02}", DAY))
         .join("input");
     log::debug!("Opening file {:?}", input_path);
-    let s = fs::read_to_string(input_path).expect("Some input needs to exist");
-    let input: Vec<usize> = s
+    let input = &fs::read_to_string(input_path).expect("Some input needs to exist");
+
+    let input = input
         .lines()
-        .map(|line| {
-            line.split(",")
-                .map(usize::from_str)
-                .map(Result::unwrap)
-                .collect::<Vec<usize>>()
-        })
+        .map(|s| s.split(',').map(isize::from_str).map(Result::unwrap))
         .flatten()
-        .collect();
+        .collect::<Vec<isize>>();
+
     log::debug!("Day {} load: {:?}", DAY, start.elapsed());
 
     let start = Instant::now();
@@ -116,13 +113,13 @@ mod tests {
             .join("input");
         log::debug!("Opening file {:?}", input_path);
         let s = fs::read_to_string(input_path).expect("Some input needs to exist");
-        let input: Vec<usize> = s
+        let input: Vec<isize> = s
             .lines()
             .map(|line| {
                 line.split(",")
-                    .map(usize::from_str)
+                    .map(isize::from_str)
                     .map(Result::unwrap)
-                    .collect::<Vec<usize>>()
+                    .collect::<Vec<isize>>()
             })
             .flatten()
             .collect();

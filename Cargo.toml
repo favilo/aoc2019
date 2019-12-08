@@ -12,9 +12,19 @@ env_logger = "*"
 itertools = "*"
 lazy_static = "*"
 log = { version = "*", features = ["std", "serde"] }
+ndarray = "*"
+sorted-vec = "*"
+vec-tree = "*"
+
 thread_profiler = { version = "*", optional = true }
 
 [features]
 
 profiler = ["thread_profiler"]
 include_slow = []
+
+[profile.dev]
+opt-level = 3
+
+[patch.crates-io]
+sorted-vec = { path = "/home/klah/git/rust/sorted-vec" }
